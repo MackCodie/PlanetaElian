@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Alumnos | DSS</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body style="display: none;">
+
+<div class="modal-overlay" id="modalDelete" style="display: none;">
+    <div class="modal-box">
+        <h3 style="color: #b91c1c; margin-bottom: 10px;"><i class="fa-solid fa-triangle-exclamation"></i> Zona de Peligro</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Para eliminar al alumno <b id="alumnoBorrarTxt"></b>, ingresa tu contraseña para confirmar:</p>
+        
+        <input type="password" id="adminPassConfirm" class="form-group input" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 15px;" placeholder="Tu Contraseña" autocomplete="off">
+        <input type="hidden" id="nocontrolBorrar">
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="cerrarModal()" class="btn-submit" style="background: #94a3b8; flex: 1; margin-top: 0;">Cancelar</button>
+            <button onclick="confirmarEliminacion()" class="btn-submit" style="background: #ef4444; flex: 1; margin-top: 0;">Eliminar</button>
+        </div>
+        <div id="modalError" style="color: #b91c1c; font-size: 12px; margin-top: 10px; display: none;"></div>
+    </div>
+</div>
+
+<div class="main-card">
+    <div class="card-header" style="padding-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="color: var(--text-main); font-size: 20px;"><i class="fa-solid fa-users"></i> Gestión de Alumnos</h2>
+            <button onclick="window.location.href='menu_usuarios.html'" class="btn-submit" style="width: auto; padding: 6px 12px; font-size: 12px; margin: 0; background: var(--text-muted);">Volver</button>
+        </div>
+        
+        <div class="nav-buttons">
+            <button class="nav-btn active" id="btnForm" onclick="cambiarVista('form')">Nuevo Alumno</button>
+            <button class="nav-btn" id="btnTable" onclick="cambiarVista('table')">Registros</button>
+        </div>
+    </div>
+
+    <div class="slider-viewport">
+        <div class="slider-track view-form" id="track">
+            
+            <div class="slide slide-form" id="panelFormulario">
+                <form id="alumnoForm">
+                    <div class="registro-toggle">
+                        <label class="toggle-option active" id="lblIndividual">
+                            <input type="radio" name="tipo_registro" value="individual" checked onchange="cambiarModoRegistro()"> Individual
+                        </label>
+                        <label class="toggle-option" id="lblMasivo">
+                            <input type="radio" name="tipo_registro" value="masivo" onchange="cambiarModoRegistro()"> Archivo (.txt)
+                        </label>
+                    </div>
+
+                    <div id="camposIndividuales">
+                        <div class="form-group">
+                            <label>No. Control</label>
+                            <input type="text" id="nocontrol" placeholder="No. Control" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre Completo</label>
+                            <input type="text" id="nombre" placeholder="Nombre" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Correo</label>
+                            <input type="email" id="email" placeholder="Correo" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña</label>
+                            <input type="password" id="password" placeholder="Contraseña" required autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div id="campoMasivo" style="display: none;">
+                        <div class="form-group">
+                            <label>Subir Archivo de Usuarios</label>
+                            <input type="file" id="archivoTxt" accept=".txt,.csv" style="background: white; padding: 9px;">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>Grupo</label>
+                            <input type="text" id="grupo" placeholder="Grupo" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Periodo</label>
+                            <select id="periodo">
+                                <option value="ENE-JUN">ENE-JUN</option>
+                                <option value="AGO-DIC">AGO-DIC</option>
+                                <option value="VERANO">VERANO</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-submit">Registrar</button>
+                </form>
+                <div id="responseMsg"></div>
+            </div>
+
+            <div class="slide slide-table">
+                <div class="table-wrapper">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>N.Control</th>
+                                <th>Nombre</th>
+                                <th>Gpo</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaCuerpo"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // Variable global para guardar los permisos de quien inicia sesión
+    let misPermisos = [];
+
+    // 1. MIDDLEWARE: Verificación de Sesión y Permisos
+    async function protegerRuta(rolesPermitidos) {
+        try {
+            const res = await fetch('api_verificar_sesion.php');
+            if (!res.ok) throw new Error("No autenticado");
+            const sesion = await res.json();
+            
+            if (!sesion.autenticado || !rolesPermitidos.includes(sesion.rol)) {
+                window.location.replace('index.html');
+                return false;
+            }
+            misPermisos = sesion.permisos || []; // Guardamos los permisos granulares
+            return sesion;
+        } catch (error) {
+            window.location.replace('index.html');
+            return false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        // AQUÍ ESTÁ EL CAMBIO: Agregamos DOCENTE y PROFESOR a la lista de invitados
+        const sesionValida = await protegerRuta(['ADMIN', 'DOCENTE', 'PROFESOR']); 
+        
+        if (sesionValida) { 
+            document.body.style.display = 'flex'; 
+            aplicarRBACVisual(); // Adaptar la interfaz a los permisos
+        }
+    });
+
+    // 2. FUNCIÓN MÁGICA RBAC: Ocultar lo que no tienen permiso de hacer
+    function aplicarRBACVisual() {
+        if (!misPermisos.includes('alumno_insert')) {
+            document.getElementById('btnForm').style.display = 'none'; // Oculta pestaña
+            cambiarVista('table'); // Fuerza a ver la tabla
+        }
+        if (!misPermisos.includes('alumno_select')) {
+            document.getElementById('btnTable').style.display = 'none'; // Oculta pestaña tabla
+            document.querySelector('.table-wrapper').innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No tienes permiso para ver registros.</div>';
+        }
+    }
+
+    // 3. INTERFAZ
+    function cambiarModoRegistro() {
+        const modo = document.querySelector('input[name="tipo_registro"]:checked').value;
+        const camposInd = document.getElementById('camposIndividuales');
+        const campoMasivo = document.getElementById('campoMasivo');
+        const lblInd = document.getElementById('lblIndividual');
+        const lblMasivo = document.getElementById('lblMasivo');
+
+        if (modo === 'individual') {
+            camposInd.style.display = 'block'; campoMasivo.style.display = 'none';
+            lblInd.classList.add('active'); lblMasivo.classList.remove('active');
+            document.getElementById('nocontrol').required = true;
+            document.getElementById('nombre').required = true;
+            document.getElementById('email').required = true;
+            document.getElementById('password').required = true; 
+            document.getElementById('archivoTxt').required = false;
+        } else {
+            camposInd.style.display = 'none'; campoMasivo.style.display = 'block';
+            lblInd.classList.remove('active'); lblMasivo.classList.add('active');
+            document.getElementById('nocontrol').required = false;
+            document.getElementById('nombre').required = false;
+            document.getElementById('email').required = false;
+            document.getElementById('password').required = false; 
+            document.getElementById('archivoTxt').required = true;
+        }
+    }
+
+    function cambiarVista(vista) {
+        const track = document.getElementById('track');
+        const btnForm = document.getElementById('btnForm');
+        const btnTable = document.getElementById('btnTable');
+
+        if (vista === 'form') {
+            track.className = 'slider-track view-form';
+            btnForm.classList.add('active'); btnTable.classList.remove('active');
+        } else {
+            track.className = 'slider-track view-table';
+            btnForm.classList.remove('active'); btnTable.classList.add('active');
+            if(misPermisos.includes('alumno_select')) { cargarAlumnos(); }
+        }
+    }
+
+    // 4. API - CARGAR ALUMNOS
+    async function cargarAlumnos() {
+        const tbody = document.getElementById('tablaCuerpo');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">Cargando... <i class="fa-solid fa-spinner fa-spin"></i></td></tr>';
+        
+        try {
+            const res = await fetch('api_alumnos.php'); 
+            const data = await res.json();
+            tbody.innerHTML = '';
+
+            if (data.status === 'error') {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#b91c1c; font-weight:bold;">${data.mensaje}</td></tr>`;
+                return;
+            }
+
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">Sin registros</td></tr>';
+                return;
+            }
+
+            data.forEach(a => {
+                // CONDICIONAL RBAC: Solo dibuja el bote de basura si tiene permiso 'alumno_delete'
+                let btnEliminar = '';
+                if (misPermisos.includes('alumno_delete')) {
+                    btnEliminar = `
+                    <button class="btn-icon" onclick="abrirModal('${a.nocontrol}', '${a.nombre}')" title="Eliminar Alumno">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>`;
+                }
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:600">${a.nocontrol}</td>
+                        <td style="font-size:12px">${a.nombre}</td>
+                        <td>${a.grupo}</td>
+                        <td style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="badge">${a.periodo}</span>
+                            ${btnEliminar}
+                        </td>
+                    </tr>`;
+            });
+        } catch (e) { 
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#b91c1c;">Fallo al cargar. Revisa la consola.</td></tr>';
+        }
+    }
+
+    // 5. API - GUARDAR
+    document.getElementById('alumnoForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msgDiv = document.getElementById('responseMsg');
+        msgDiv.style.display = 'none';
+
+        const errorGenerico = "Favor de introducir correctamente los caracteres";
+        const modo = document.querySelector('input[name="tipo_registro"]:checked').value;
+        const formData = new FormData();
+        formData.append('grupo', document.getElementById('grupo').value.trim().toUpperCase());
+        formData.append('periodo', document.getElementById('periodo').value);
+        formData.append('modo', modo); 
+
+        if (modo === 'individual') {
+            const nocontrol = document.getElementById('nocontrol').value.trim().toUpperCase();
+            const nombre = document.getElementById('nombre').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value; 
+
+            if (!/^[A-Z0-9]{8,12}$/.test(nocontrol)) return mostrarError(errorGenerico);
+            if (!/^[a-zA-ZÁ-ÿ\s]{3,60}$/.test(nombre)) return mostrarError(errorGenerico);
+            if (!email.includes('@')) return mostrarError(errorGenerico);
+            if (password.length < 8) return mostrarError(errorGenerico); 
+
+            formData.append('nocontrol', nocontrol);
+            formData.append('nombre', nombre);
+            formData.append('email', email);
+            formData.append('password', password); 
+        } else {
+            const archivo = document.getElementById('archivoTxt').files[0];
+            if (!archivo) return mostrarError("Selecciona un archivo .txt");
+            formData.append('archivoTxt', archivo);
+        }
+
+        try {
+            const res = await fetch('api_alumnos.php', { method: 'POST', body: formData });
+            const result = await res.json();
+
+            if (res.status === 403) {
+                mostrarError("Tu rol no tiene permiso para hacer registros.");
+                return;
+            }
+
+            if (result.status === 'ok') {
+                msgDiv.style.display = 'block'; msgDiv.style.background = '#dcfce7';
+                msgDiv.style.color = '#15803d'; msgDiv.innerHTML = '<i class="fa-solid fa-check"></i> ' + result.mensaje;
+                e.target.reset(); cambiarModoRegistro();
+            } else {
+                mostrarError(result.mensaje);
+            }
+        } catch (err) { mostrarError("Error de conexión"); }
+    });
+
+    function mostrarError(txt) {
+        const d = document.getElementById('responseMsg');
+        d.style.display='block'; d.style.background='#fee2e2'; d.style.color='#b91c1c'; d.innerHTML='<i class="fa-solid fa-triangle-exclamation"></i> ' + txt;
+    }
+
+    // 6. API - BORRAR (MODAL)
+    function abrirModal(nocontrol, nombre) {
+        document.getElementById('nocontrolBorrar').value = nocontrol;
+        document.getElementById('alumnoBorrarTxt').innerText = nocontrol + " (" + nombre + ")";
+        document.getElementById('adminPassConfirm').value = '';
+        document.getElementById('modalError').style.display = 'none';
+        document.getElementById('modalDelete').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        document.getElementById('modalDelete').style.display = 'none';
+    }
+
+    async function confirmarEliminacion() {
+        const nocontrol = document.getElementById('nocontrolBorrar').value;
+        const adminPass = document.getElementById('adminPassConfirm').value;
+        const errorDiv = document.getElementById('modalError');
+
+        if (!adminPass) {
+            errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> La contraseña es obligatoria.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await fetch('api_alumnos.php', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nocontrol: nocontrol, admin_password: adminPass })
+            });
+            const result = await res.json();
+
+            if (res.status === 403) {
+                errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Tu rol no tiene permiso para borrar.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            if (result.status === 'ok') {
+                cerrarModal();
+                cargarAlumnos(); 
+                mostrarError("✅ " + result.mensaje); 
+                document.getElementById('responseMsg').style.background = '#dcfce7';
+                document.getElementById('responseMsg').style.color = '#15803d';
+            } else {
+                errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + result.mensaje;
+                errorDiv.style.display = 'block';
+            }
+        } catch (e) {
+            errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error de conexión al servidor.';
+            errorDiv.style.display = 'block';
+        }
+    }
+</script>
+</body>
+</html>

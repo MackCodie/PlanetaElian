@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Usuarios | DSS</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body style="display: none;"> <div class="landing-container" style="max-width: 800px; margin: auto;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px; padding: 0 20px;">
+            <div style="text-align: left;">
+                <h1 style="color: #1e293b; font-size: 24px;"><i class="fa-solid fa-users-gear"></i> Gestión de Usuarios</h1>
+                <p style="color: var(--text-muted); font-weight: 600;">Selecciona el módulo que deseas administrar</p>
+            </div>
+            <button onclick="window.location.href='dashboard_admin.html'" class="btn-submit" style="width: auto; background: var(--text-muted); padding: 10px 20px;">
+                <i class="fa-solid fa-arrow-left"></i> Volver
+            </button>
+        </div>
+
+        <div class="menu-cards" style="justify-content: center; display: flex; gap: 20px;">
+            <div class="menu-card" style="max-width: 300px; width: 100%;" onclick="window.location.href='gestion_alumnos.html'">
+                <div class="icon-box bg-blue">
+                    <i class="fa-solid fa-user-graduate"></i>
+                </div>
+                <h3>Alumnos</h3>
+                <p>Altas individuales o por lote (.txt) de estudiantes.</p>
+            </div>
+
+            <div class="menu-card" style="max-width: 300px; width: 100%;" onclick="window.location.href='gestion_profesores.html'">
+                <div class="icon-box" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+                    <i class="fa-solid fa-chalkboard-user"></i>
+                </div>
+                <h3>Profesores</h3>
+                <p>Registro y control de accesos del personal docente.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // MIDDLEWARE DE SEGURIDAD (DSS)
+        async function protegerRuta(rolesPermitidos) {
+            try {
+                const res = await fetch('api_verificar_sesion.php');
+                if (!res.ok) throw new Error("No autenticado");
+                const sesion = await res.json();
+                
+                if (!sesion.autenticado || !rolesPermitidos.includes(sesion.rol)) {
+                    window.location.replace('index.html');
+                    return false;
+                }
+                return sesion;
+            } catch (error) {
+                window.location.replace('index.html');
+                return false;
+            }
+        }
+
+        // CARGAR VISTA SOLO SI ES ADMIN
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sesionValida = await protegerRuta(['ADMIN']);
+            if (sesionValida) {
+                document.body.style.display = 'flex'; 
+            }
+        });
+    </script>
+</body>
+</html>

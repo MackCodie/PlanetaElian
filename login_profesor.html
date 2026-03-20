@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Profesores | TONI</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="main-card" style="max-width: 400px; margin: auto; margin-top: 10vh;">
+        <div class="card-header" style="text-align: center; padding-bottom: 0;">
+            <div class="icon-box bg-blue" style="width: 50px; height: 50px; font-size: 20px; margin-bottom: 10px;">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2 style="color: var(--text-main); font-size: 20px;">Acceso Seguro</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 5px;">Módulo exclusivo para profesores</p>
+        </div>
+        
+        <div style="padding: 20px 30px;">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Correo Electrónico</label>
+                    <input type="text" name="correo" id="correo" placeholder="profesor@tecnm.mx" required>
+                </div>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" name="password" id="password" placeholder="Tu contraseña" required>
+                </div>
+                <button type="submit" class="btn-submit">Iniciar Sesión</button>
+            </form>
+            
+            <div id="loginResponse" style="margin-top: 15px; text-align: center; font-size: 13px; font-weight: 600; min-height: 20px;"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault(); // Evita que la página recargue
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            const responseDiv = document.getElementById('loginResponse');
+            
+            responseDiv.innerHTML = '<span style="color: var(--text-muted);">Verificando credenciales en la base de datos...</span>';
+
+            try {
+                // Conectamos con la API que creamos en el paso anterior
+                const res = await fetch('api_login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const json = await res.json();
+                
+                if (json.status === 'ok') {
+                    // Si el login es correcto (Verde)
+                    responseDiv.innerHTML = `<span style="color: #16a34a;"><i class="fa-solid fa-check-circle"></i> ${json.mensaje}</span>`;
+                    
+                    // En un escenario real, aquí harías algo como:
+                    // setTimeout(() => window.location.href = 'dashboard_profesor.html', 1500);
+                } else {
+                    // Si falla o detecta el ataque (Rojo)
+                    responseDiv.innerHTML = `<span style="color: #dc2626;"><i class="fa-solid fa-circle-xmark"></i> ${json.mensaje}</span>`;
+                }
+            } catch (error) {
+                responseDiv.innerHTML = '<span style="color: #dc2626;">❌ Error al conectar con el servidor.</span>';
+            }
+        });
+    </script>
+</body>
+</html>

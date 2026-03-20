@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso Seguro | DSS</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="main-card" style="max-width: 400px; margin: auto; margin-top: 10vh; padding-top: 20px;">
+        <div class="card-header" style="padding-bottom: 15px;">
+            <img src="TECNM.png" alt="Logo TecNM" class="card-logo" style="max-width: 110px;">
+            <h2 style="color: var(--text-main); font-size: 22px; margin-top: 15px;">Portal de Acceso</h2>
+        </div>
+        
+        <div style="padding: 0 30px 30px 30px;">
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Usuario</label>
+                    <input type="text" id="identificador" placeholder="Usuario" required autocomplete="off">
+                </div>
+                
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" id="password" placeholder="Contraseña" required>
+                </div>
+                
+                <button type="submit" class="btn-submit" style="margin-top: 15px;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Ingresar
+                </button>
+            </form>
+            
+            <div id="responseMsg"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msgDiv = document.getElementById('responseMsg');
+            msgDiv.style.display = 'none';
+
+            const identificador = document.getElementById('identificador').value.trim();
+            const password = document.getElementById('password').value;
+            
+            // EL MENSAJE MUDO: Único mensaje de error sin importar la causa real
+            const errorGenerico = "Credenciales incorrectas o acceso denegado.";
+
+            // Validación silenciosa en el cliente
+            if (!identificador || !password) {
+                return mostrarError(errorGenerico);
+            }
+
+            try {
+                // Bloquear el botón mientras carga para evitar ataques de doble clic o spamming
+                const btnSubmit = e.target.querySelector('.btn-submit');
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Autenticando...';
+
+                const res = await fetch('api_login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identificador, password })
+                });
+                
+                const result = await res.json();
+
+                if (res.ok && result.status === 'ok') {
+                    // Redirección inteligente proporcionada por el backend seguro
+                    window.location.replace(result.redirect);
+                } else {
+                    // Si el backend rechaza, mostramos NUESTRO mensaje genérico, 
+                    // ignorando cualquier pista que el backend haya podido mandar por error.
+                    mostrarError(errorGenerico);
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Ingresar';
+                }
+            } catch (err) {
+                mostrarError("Error al procesar la solicitud.");
+                const btnSubmit = e.target.querySelector('.btn-submit');
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Ingresar';
+            }
+        });
+
+        function mostrarError(txt) {
+            const d = document.getElementById('responseMsg');
+            d.style.display = 'block'; 
+            d.style.background = '#fee2e2'; 
+            d.style.color = '#b91c1c'; 
+            d.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + txt;
+        }
+    </script>
+</body>
+</html>

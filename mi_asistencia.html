@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi Asistencia | DSS</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .badge-presente { background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 11px; }
+        .badge-falta { background: #fee2e2; color: #991b1b; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 11px; }
+        .badge-retardo { background: #fef08a; color: #854d0e; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 11px; }
+        
+        /* Alerta de Peligro */
+        .alert-danger {
+            background-color: #fef2f2;
+            border: 1px solid #f87171;
+            color: #b91c1c;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body style="display: none;"> <div class="main-card" style="max-width: 600px; margin: auto; margin-top: 5vh;">
+        <div class="card-header" style="text-align: center;">
+            <div class="icon-box bg-blue" style="width: 50px; height: 50px; font-size: 20px; margin-bottom: 10px;">
+                <i class="fa-solid fa-user-graduate"></i>
+            </div>
+            <h2 style="color: var(--text-main); font-size: 20px;">Mi Historial de Asistencia</h2>
+            <p id="nombreAlumno" style="font-size: 14px; color: var(--text-muted); font-weight: 600;">Cargando datos...</p>
+            <p id="datosControl" style="font-size: 12px; color: var(--primary);"></p>
+        </div>
+        
+        <div style="padding: 20px 30px;">
+            <div id="alertaReprobado" class="alert-danger">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 18px;"></i>
+                <div>
+                    <strong>¡ALERTA ACADÉMICA!</strong><br>
+                    Has superado el 20% de inasistencias permitidas.
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="glass-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Materia</th>
+                            <th style="text-align: right;">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaMisAsistencias"></tbody>
+                </table>
+            </div>
+            
+            <div style="margin-top: 15px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-muted);">
+                <span>Total Clases: <span id="totales">0</span></span>
+                <span>Faltas: <span id="faltas" style="color: #dc2626;">0</span> (<span id="porcentaje">0</span>%)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. MIDDLEWARE DE SEGURIDAD (Guardaespaldas)
+        async function protegerRuta(rolesPermitidos) {
+            try {
+                const res = await fetch('api_verificar_sesion.php');
+                if (!res.ok) throw new Error("No autenticado");
+                const sesion = await res.json();
+                
+                if (!sesion.autenticado || !rolesPermitidos.includes(sesion.rol)) {
+                    window.location.replace('index.html');
+                    return false;
+                }
+                return sesion;
+            } catch (error) {
+                window.location.replace('index.html');
+                return false;
+            }
+        }
+
+        // 2. INICIAR LA PANTALLA
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sesionValida = await protegerRuta(['ALUMNO']);
+            
+            if (sesionValida) {
+                document.body.style.display = 'flex'; // Mostrar la vista segura
+                cargarDatosAsistencia();
+            }
+        });
+
+        async function cargarDatosAsistencia() {
+            const tbody = document.getElementById('tablaMisAsistencias');
+            try {
+                const res = await fetch('api_mis_asistencias.php');
+                const json = await res.json();
+                
+                if(json.status === 'ok') {
+                    document.getElementById('nombreAlumno').innerText = json.alumno;
+                    document.getElementById('datosControl').innerText = `No. Control: ${json.nocontrol}`;
+                    
+                    if(json.estadisticas.reprobado_por_faltas === true) {
+                        document.getElementById('alertaReprobado').style.display = 'flex';
+                    }
+
+                    document.getElementById('totales').innerText = json.estadisticas.total_clases;
+                    document.getElementById('faltas').innerText = json.estadisticas.faltas;
+                    document.getElementById('porcentaje').innerText = json.estadisticas.porcentaje;
+
+                    if (json.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No hay registros de asistencia aún.</td></tr>';
+                        return;
+                    }
+
+                    json.data.forEach(reg => {
+                        let badgeClass = 'badge-presente';
+                        if (reg.estado === 'Falta') badgeClass = 'badge-falta';
+                        if (reg.estado === 'Retardo') badgeClass = 'badge-retardo';
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${reg.fecha}</td>
+                                <td>${reg.nombre_materia}</td>
+                                <td style="text-align: right;"><span class="${badgeClass}">${reg.estado}</span></td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color: red;">Error: ${json.mensaje}</td></tr>`;
+                }
+            } catch (error) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: red;">Error de conexión con el servidor.</td></tr>';
+            }
+        }
+    </script>
+</body>
+</html>

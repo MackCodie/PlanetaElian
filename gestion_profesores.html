@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Profesores | DSS</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body style="display: none;">
+
+<div class="modal-overlay" id="modalDelete" style="display: none;">
+    <div class="modal-box">
+        <h3 style="color: #b91c1c; margin-bottom: 10px;"><i class="fa-solid fa-triangle-exclamation"></i> Zona de Peligro</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">Para eliminar al docente <b id="profeBorrarTxt"></b>, ingresa tu contraseña de Administrador:</p>
+        
+        <input type="password" id="adminPassConfirm" class="form-group input" style="width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 15px;" placeholder="Contraseña Admin" autocomplete="off">
+        <input type="hidden" id="idBorrar">
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="cerrarModal()" class="btn-submit" style="background: #94a3b8; flex: 1; margin-top: 0;">Cancelar</button>
+            <button onclick="confirmarEliminacion()" class="btn-submit" style="background: #ef4444; flex: 1; margin-top: 0;">Eliminar</button>
+        </div>
+        <div id="modalError" style="color: #b91c1c; font-size: 12px; margin-top: 10px; display: none;"></div>
+    </div>
+</div>
+
+<div class="main-card">
+    <div class="card-header" style="padding-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="color: var(--text-main); font-size: 20px;"><i class="fa-solid fa-chalkboard-user"></i> Gestión Docente</h2>
+            <button onclick="window.location.href='menu_usuarios.html'" class="btn-submit" style="width: auto; padding: 6px 12px; font-size: 12px; margin: 0; background: var(--text-muted);">Volver</button>
+        </div>
+        
+        <div class="nav-buttons">
+            <button class="nav-btn active" id="btnForm" onclick="cambiarVista('form')">Nuevo Profesor</button>
+            <button class="nav-btn" id="btnTable" onclick="cambiarVista('table')">Registros</button>
+        </div>
+    </div>
+
+    <div class="slider-viewport">
+        <div class="slider-track view-form" id="track">
+            
+            <div class="slide slide-form">
+                <form id="profesorForm">
+                    <div id="camposIndividuales">
+                        <div class="form-group">
+                            <label>Nombre Completo</label>
+                            <input type="text" id="nombre" placeholder="Nombre" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Correo Institucional</label>
+                            <input type="email" id="correo" placeholder="Correo" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña Asignada</label>
+                            <input type="password" id="password" placeholder="Contraseña" required autocomplete="off">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-submit" style="margin-top: 20px;">
+                        <i class="fa-solid fa-user-plus"></i> Registrar Docente
+                    </button>
+                </form>
+                <div id="responseMsg"></div>
+            </div>
+
+            <div class="slide slide-table">
+                <div class="table-wrapper">
+                    <table class="glass-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Correo</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaCuerpo"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. MIDDLEWARE
+    async function protegerRuta(rolesPermitidos) {
+        try {
+            const res = await fetch('api_verificar_sesion.php');
+            if (!res.ok) throw new Error("No autenticado");
+            const sesion = await res.json();
+            if (!sesion.autenticado || !rolesPermitidos.includes(sesion.rol)) {
+                window.location.replace('index.html');
+                return false;
+            }
+            return sesion;
+        } catch (error) {
+            window.location.replace('index.html');
+            return false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const sesionValida = await protegerRuta(['ADMIN']);
+        if (sesionValida) { document.body.style.display = 'flex'; }
+    });
+
+    // 2. INTERFAZ
+    function cambiarVista(vista) {
+        const track = document.getElementById('track');
+        const btnForm = document.getElementById('btnForm');
+        const btnTable = document.getElementById('btnTable');
+
+        if (vista === 'form') {
+            track.className = 'slider-track view-form';
+            btnForm.classList.add('active'); btnTable.classList.remove('active');
+        } else {
+            track.className = 'slider-track view-table';
+            btnForm.classList.remove('active'); btnTable.classList.add('active');
+            cargarProfesores(); 
+        }
+    }
+
+    // 3. API - CARGAR PROFESORES
+    async function cargarProfesores() {
+        const tbody = document.getElementById('tablaCuerpo');
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">Cargando... <i class="fa-solid fa-spinner fa-spin"></i></td></tr>';
+        
+        try {
+            const res = await fetch('api_profesores.php'); 
+            const text = await res.text();
+            const data = JSON.parse(text);
+            tbody.innerHTML = '';
+
+            if (data.status === 'error') {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#b91c1c; font-weight:bold;">${data.mensaje}</td></tr>`;
+                return;
+            }
+
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">Sin registros</td></tr>';
+                return;
+            }
+
+            data.forEach(p => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:600; color: var(--primary);">${p.id_profesor}</td>
+                        <td style="font-size:13px">${p.nombre}</td>
+                        <td style="font-size:12px; color: var(--text-muted);">${p.correo}</td>
+                        <td style="display: flex; justify-content: flex-end;">
+                            <button class="btn-icon" onclick="abrirModal('${p.id_profesor}', '${p.nombre}')" title="Eliminar Docente">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+        } catch (e) { 
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#b91c1c;">Fallo al cargar. Revisa la consola.</td></tr>';
+        }
+    }
+
+    // API - GUARDAR
+    document.getElementById('profesorForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msgDiv = document.getElementById('responseMsg');
+        msgDiv.style.display = 'none';
+
+        const errorGenerico = "Favor de introducir correctamente los caracteres";
+        const formData = new FormData();
+        
+        const nombre = document.getElementById('nombre').value.trim();
+        const correo = document.getElementById('correo').value.trim();
+        const password = document.getElementById('password').value; 
+
+        if (!/^[a-zA-ZÁ-ÿ\s.]{3,60}$/.test(nombre)) return mostrarError(errorGenerico);
+        if (!correo.includes('@')) return mostrarError(errorGenerico);
+        if (password.length < 8) return mostrarError(errorGenerico); 
+
+        formData.append('nombre', nombre);
+        formData.append('correo', correo);
+        formData.append('password', password); 
+
+        try {
+            const res = await fetch('api_profesores.php', { method: 'POST', body: formData });
+            const result = await res.json();
+
+            if (result.status === 'ok') {
+                msgDiv.style.display = 'block'; msgDiv.style.background = '#dcfce7';
+                msgDiv.style.color = '#15803d'; msgDiv.innerHTML = '<i class="fa-solid fa-check"></i> ' + result.mensaje;
+                e.target.reset(); 
+            } else {
+                mostrarError(result.mensaje);
+            }
+        } catch (err) { mostrarError("Error de conexión"); }
+    });
+
+    function mostrarError(txt) {
+        const d = document.getElementById('responseMsg');
+        d.style.display='block'; d.style.background='#fee2e2'; d.style.color='#b91c1c'; d.innerHTML='<i class="fa-solid fa-triangle-exclamation"></i> ' + txt;
+    }
+
+    // 4. API - BORRAR (MODAL)
+    function abrirModal(id, nombre) {
+        document.getElementById('idBorrar').value = id;
+        document.getElementById('profeBorrarTxt').innerText = nombre;
+        document.getElementById('adminPassConfirm').value = '';
+        document.getElementById('modalError').style.display = 'none';
+        document.getElementById('modalDelete').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        document.getElementById('modalDelete').style.display = 'none';
+    }
+
+    async function confirmarEliminacion() {
+        const id_profesor = document.getElementById('idBorrar').value;
+        const adminPass = document.getElementById('adminPassConfirm').value;
+        const errorDiv = document.getElementById('modalError');
+
+        if (!adminPass) {
+            errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> La contraseña es obligatoria.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await fetch('api_profesores.php', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_profesor: id_profesor, admin_password: adminPass })
+            });
+            const result = await res.json();
+
+            if (result.status === 'ok') {
+                cerrarModal();
+                cargarProfesores(); 
+                mostrarError("✅ " + result.mensaje); 
+                document.getElementById('responseMsg').style.background = '#dcfce7';
+                document.getElementById('responseMsg').style.color = '#15803d';
+            } else {
+                errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + result.mensaje;
+                errorDiv.style.display = 'block';
+            }
+        } catch (e) {
+            errorDiv.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error de conexión al servidor.';
+            errorDiv.style.display = 'block';
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administrador | DSS</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body style="display: none;"> <div class="landing-container" style="max-width: 800px; margin: auto;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px; padding: 0 20px;">
+            <div style="text-align: left;">
+                <h1 style="color: #1e293b; font-size: 24px;">Panel de Administración</h1>
+                <p style="color: var(--primary); font-weight: 600;">Bienvenido, <span id="nombreUsuario">Admin</span></p>
+            </div>
+            <button onclick="cerrarSesion()" class="btn-submit" style="width: auto; background: #ef4444; padding: 10px 20px;">
+                <i class="fa-solid fa-power-off"></i> Salir
+            </button>
+        </div>
+
+        <div class="menu-cards">
+            <div class="menu-card" onclick="window.location.href='matriz_rbac.html'">
+                <div class="icon-box bg-purple">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h3>Matriz RBAC</h3>
+                <p>Gestionar permisos y control de acceso del sistema.</p>
+            </div>
+
+         <div class="menu-card" onclick="window.location.href='menu_usuarios.html'">
+    <div class="icon-box bg-blue">
+        <i class="fa-solid fa-users-gear"></i>
+    </div>
+    <h3>Gestión Usuarios</h3>
+    <p>Administrar cuentas de alumnos y personal docente.</p>
+</div>
+            
+            <div class="menu-card" onclick="alert('Módulo en construcción')">
+                <div class="icon-box" style="background: linear-gradient(135deg, #fbbf24, #d97706);">
+                    <i class="fa-solid fa-file-shield"></i>
+                </div>
+                <h3>Logs de Auditoría</h3>
+                <p>Rastreo de seguridad y movimientos en la BD.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. MIDDLEWARE DE SEGURIDAD
+        async function protegerRuta(rolesPermitidos) {
+            try {
+                const res = await fetch('api_verificar_sesion.php');
+                if (!res.ok) throw new Error("No autenticado");
+                const sesion = await res.json();
+                
+                if (!sesion.autenticado || !rolesPermitidos.includes(sesion.rol)) {
+                    window.location.replace('index.html');
+                    return false;
+                }
+                return sesion;
+            } catch (error) {
+                window.location.replace('index.html');
+                return false;
+            }
+        }
+
+        // 2. CARGAR VISTA
+        document.addEventListener('DOMContentLoaded', async () => {
+            const sesionValida = await protegerRuta(['ADMIN']);
+            if (sesionValida) {
+                document.body.style.display = 'flex'; // Mostrar interfaz
+                document.getElementById('nombreUsuario').innerText = sesionValida.nombre;
+            }
+        });
+
+        // 3. CERRAR SESIÓN DE FORMA SEGURA
+        async function cerrarSesion() {
+            if(confirm("¿Estás seguro de que deseas cerrar sesión?")) {
+                await fetch('api_logout.php');
+                window.location.replace('index.html');
+            }
+        }
+    </script>
+</body>
+</html>
